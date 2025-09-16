@@ -1,18 +1,51 @@
 import * as React from "react";
 
-export type HotkeysOptions = {
+/**
+ * Configuration object for the useHotkeys hook.
+ */
+export type hotkeysConfig = {
+  /**
+   * Keyboard event type to listen for.
+   */
   eventType?: "keydown" | "keyup" | "keypress";
+  /**
+   * Target where listeners will be attached. Defaults to window in the browser.
+   */
   target?: EventTarget | null;
+  /**
+   * Options passed to addEventListener.
+   */
   eventOptions?: AddEventListenerOptions | boolean;
+  /**
+   * Enables or disables the listener attachment.
+   */
   enabled?: boolean;
-  requireCtrl?: boolean;
+  /**
+   * Requires Control key to be pressed.
+   */
+  requireControl?: boolean;
+  /**
+   * Requires Meta key to be pressed.
+   */
   requireMeta?: boolean;
+  /**
+   * Requires Shift key to be pressed.
+   */
   requireShift?: boolean;
+  /**
+   * Requires Alt key to be pressed.
+   */
   requireAlt?: boolean;
+  /**
+   * When true, returns a state object for UI feedback.
+   */
   returnState?: boolean;
 };
 
-export type HotkeyIndicatorState = {
+/**
+ * Observable state returned when returnState is true.
+ */
+export type hotkeyState = {
   isActive: boolean;
   lastKey: string | null;
   lastEventType: "keydown" | "keyup" | "keypress" | null;
@@ -21,29 +54,71 @@ export type HotkeyIndicatorState = {
   isCombinationActive: boolean;
 };
 
-export function useHotkeys(
-  keys: string | string[],
-  callback: (event: KeyboardEvent) => void,
-  options?: Omit<HotkeysOptions, "returnState"> & { returnState?: false }
-): void;
+export type listenerCapable = {
+  addEventListener: (
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions
+  ) => void;
+  removeEventListener: (
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | EventListenerOptions
+  ) => void;
+};
 
-export function useHotkeys(
-  keys: string | string[],
-  callback: (event: KeyboardEvent) => void,
-  options: Omit<HotkeysOptions, "returnState"> & { returnState: true }
-): HotkeyIndicatorState;
+export const isListenerCapable = (
+  value: EventTarget | null
+): value is EventTarget & listenerCapable => {
+  return (
+    !!value && "addEventListener" in value && "removeEventListener" in value
+  );
+};
 
-export function useHotkeys(
+/**
+ * Registers keyboard hotkeys and invokes a callback when matched.
+ * Does not return state.
+ *
+ * @param keys List of keys to match against `event.key`.
+ * @param callback Function invoked when a matching event is fired.
+ * @param options Behavior configuration.
+ */
+const useHotkeys = (
   keys: string | string[],
   callback: (event: KeyboardEvent) => void,
-  options: HotkeysOptions = {}
-): void | HotkeyIndicatorState {
+  options?: Omit<hotkeysConfig, "returnState"> & { returnState?: false }
+): void => {
+  internalUseHotkeys(keys, callback, options ?? {});
+};
+
+/**
+ * Registers keyboard hotkeys, invokes a callback when matched,
+ * and returns a state object for UI feedback.
+ *
+ * @param keys List of keys to match against `event.key`.
+ * @param callback Function invoked when a matching event is fired.
+ * @param options Behavior configuration with `returnState: true`.
+ * @returns hotkeyState for rendering visual indicators.
+ */
+export const useHotkeysWithState = (
+  keys: string | string[],
+  callback: (event: KeyboardEvent) => void,
+  options: Omit<hotkeysConfig, "returnState"> & { returnState: true }
+): hotkeyState => {
+  return internalUseHotkeys(keys, callback, options) as hotkeyState;
+};
+
+const internalUseHotkeys = (
+  keys: string | string[],
+  callback: (event: KeyboardEvent) => void,
+  options: hotkeysConfig
+): void | hotkeyState => {
   const {
     eventType = "keydown",
     target,
     eventOptions,
     enabled = true,
-    requireCtrl = false,
+    requireControl = false,
     requireMeta = false,
     requireShift = false,
     requireAlt = false,
@@ -52,15 +127,16 @@ export function useHotkeys(
 
   const normalizedKeys = React.useMemo<Set<string>>(() => {
     const list = Array.isArray(keys) ? keys : [keys];
-    return new Set(list.map(String));
+    return new Set(list.map((value) => String(value)));
   }, [keys]);
 
   const callbackRef = React.useRef<(event: KeyboardEvent) => void>(callback);
+
   React.useEffect(() => {
     callbackRef.current = callback;
   }, [callback]);
 
-  const [indicator, setIndicator] = React.useState<HotkeyIndicatorState>({
+  const [indicator, setIndicator] = React.useState<hotkeyState>({
     isActive: false,
     lastKey: null,
     lastEventType: null,
@@ -69,92 +145,129 @@ export function useHotkeys(
     isCombinationActive: false
   });
 
-  const updateIndicatorOnTrigger = React.useCallback(
-    (event: KeyboardEvent) => {
-      setIndicator((prev) => ({
-        isActive: event.type === "keydown" ? true : prev.isActive,
-        lastKey: event.key ?? null,
-        lastEventType: (event.type as "keydown" | "keyup" | "keypress") ?? null,
-        pressCount: prev.pressCount + 1,
+  const updateStateOnTrigger = React.useCallback(
+    (keyboardEvent: KeyboardEvent) => {
+      setIndicator((previousState) => ({
+        isActive:
+          keyboardEvent.type === "keydown" ? true : previousState.isActive,
+        lastKey: keyboardEvent.key ?? null,
+        lastEventType:
+          (keyboardEvent.type as "keydown" | "keyup" | "keypress") ?? null,
+        pressCount: previousState.pressCount + 1,
         lastTriggeredAt: Date.now(),
         isCombinationActive:
-          (!!event.ctrlKey ||
-            !!event.metaKey ||
-            !!event.shiftKey ||
-            !!event.altKey) &&
-          (!requireCtrl || !!event.ctrlKey) &&
-          (!requireMeta || !!event.metaKey) &&
-          (!requireShift || !!event.shiftKey) &&
-          (!requireAlt || !!event.altKey)
+          (!!keyboardEvent.ctrlKey ||
+            !!keyboardEvent.metaKey ||
+            !!keyboardEvent.shiftKey ||
+            !!keyboardEvent.altKey) &&
+          (!requireControl || !!keyboardEvent.ctrlKey) &&
+          (!requireMeta || !!keyboardEvent.metaKey) &&
+          (!requireShift || !!keyboardEvent.shiftKey) &&
+          (!requireAlt || !!keyboardEvent.altKey)
       }));
     },
-    [requireCtrl, requireMeta, requireShift, requireAlt]
+    [requireControl, requireMeta, requireShift, requireAlt]
   );
 
-  const matchEvent = React.useCallback(
-    (event: KeyboardEvent): boolean => {
-      if (!normalizedKeys.has(event.key)) return false;
-      if (requireCtrl && !event.ctrlKey) return false;
-      if (requireMeta && !event.metaKey) return false;
-      if (requireShift && !event.shiftKey) return false;
-      if (requireAlt && !event.altKey) return false;
+  const doesEventMatch = React.useCallback(
+    (keyboardEvent: KeyboardEvent): boolean => {
+      if (!normalizedKeys.has(keyboardEvent.key)) {
+        return false;
+      }
+
+      if (requireControl && !keyboardEvent.ctrlKey) {
+        return false;
+      }
+
+      if (requireMeta && !keyboardEvent.metaKey) {
+        return false;
+      }
+
+      if (requireShift && !keyboardEvent.shiftKey) {
+        return false;
+      }
+
+      if (requireAlt && !keyboardEvent.altKey) {
+        return false;
+      }
+
       return true;
     },
-    [normalizedKeys, requireCtrl, requireMeta, requireShift, requireAlt]
+    [normalizedKeys, requireControl, requireMeta, requireShift, requireAlt]
   );
 
   React.useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
 
-    const eventTarget: EventTarget | null =
-      target ?? (typeof window !== "undefined" ? window : null);
-    if (!eventTarget || !("addEventListener" in eventTarget)) return;
+    const defaultTarget: EventTarget | null =
+      typeof window !== "undefined" ? window : null;
+    const eventTarget: EventTarget | null = target ?? defaultTarget;
 
-    const handlePrimary = (event: Event) => {
-      const keyboardEvent = event as KeyboardEvent;
-      if (!matchEvent(keyboardEvent)) return;
-      if (returnState) updateIndicatorOnTrigger(keyboardEvent);
-      callbackRef.current(keyboardEvent);
+    if (!isListenerCapable(eventTarget)) {
+      return;
+    }
+
+    const handlePrimaryEvent = (keyboardEvent: Event) => {
+      const eventAsKeyboardEvent = keyboardEvent as KeyboardEvent;
+
+      if (!doesEventMatch(eventAsKeyboardEvent)) {
+        return;
+      }
+
+      if (returnState) {
+        updateStateOnTrigger(eventAsKeyboardEvent);
+      }
+
+      callbackRef.current(eventAsKeyboardEvent);
     };
 
-    const handleKeyUpForDeactivation = (event: Event) => {
-      const keyboardEvent = event as KeyboardEvent;
-      if (!normalizedKeys.has(keyboardEvent.key)) return;
-      setIndicator((prev) => ({
-        ...prev,
+    const handleKeyUpDeactivation = (keyboardEvent: Event) => {
+      const eventAsKeyboardEvent = keyboardEvent as KeyboardEvent;
+
+      if (!normalizedKeys.has(eventAsKeyboardEvent.key)) {
+        return;
+      }
+
+      setIndicator((previousState) => ({
+        ...previousState,
         isActive: false,
         lastEventType: "keyup",
-        lastKey: keyboardEvent.key ?? prev.lastKey,
+        lastKey: eventAsKeyboardEvent.key ?? previousState.lastKey,
         isCombinationActive: false
       }));
     };
 
     eventTarget.addEventListener(
       eventType,
-      handlePrimary as EventListener,
+      handlePrimaryEvent as EventListener,
       eventOptions
     );
 
-    let attachedKeyUpListener = false;
+    let keyUpListenerAttached = false;
+
     if (returnState && eventType === "keydown") {
       eventTarget.addEventListener(
         "keyup",
-        handleKeyUpForDeactivation as EventListener,
+        handleKeyUpDeactivation as EventListener,
         eventOptions
       );
-      attachedKeyUpListener = true;
+
+      keyUpListenerAttached = true;
     }
 
     return () => {
       eventTarget.removeEventListener(
         eventType,
-        handlePrimary as EventListener,
+        handlePrimaryEvent as EventListener,
         eventOptions
       );
-      if (attachedKeyUpListener) {
+
+      if (keyUpListenerAttached) {
         eventTarget.removeEventListener(
           "keyup",
-          handleKeyUpForDeactivation as EventListener,
+          handleKeyUpDeactivation as EventListener,
           eventOptions
         );
       }
@@ -164,11 +277,15 @@ export function useHotkeys(
     target,
     eventType,
     eventOptions,
-    matchEvent,
-    updateIndicatorOnTrigger,
+    doesEventMatch,
+    updateStateOnTrigger,
     returnState,
     normalizedKeys
   ]);
 
-  if (returnState) return indicator;
-}
+  if (returnState) {
+    return indicator;
+  }
+};
+
+export default useHotkeys;
