@@ -63,9 +63,10 @@
   "keywords": [
     "react",
     "hook",
-    "vibration",
-    "haptics",
-    "feedback"
+    "hotkeys",
+    "keybinding",
+    "keyboard-shortcuts",
+    "shortcuts"
   ],
   "author": "Lucas de França",
   "license": "MIT",
