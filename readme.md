@@ -6,6 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](license)
 [![React >=18](https://img.shields.io/badge/react-%3E=18-61dafb?logo=react)](https://react.dev)
 
+[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/edit/use-hotkeys-playground)
+
 ## Installation
 
 ```bash
@@ -20,10 +22,14 @@ import useHotkeys from "@luxonauta/use-hotkeys";
 export const Component = () => {
   useHotkeys("Control+k", (event) => {
     event.preventDefault();
-    console.log("Control+K was pressed");
+    console.log("Control + k was pressed");
   });
 
-  return <p>Press Control+K</p>;
+  return (
+    <p>
+      Press <kbd>Control</kbd> + <kbd>k</kbd>
+    </p>
+  );
 };
 ```
 
@@ -43,7 +49,7 @@ export const Component = () => {
 
   return (
     <div>
-      <p>Press Escape</p>
+      <p>Press <kbd>Escape</<kbd></p>
       <pre>{JSON.stringify(indicator, null, 2)}</pre>
     </div>
   );
@@ -115,8 +121,8 @@ import {
 - `createHotkeyHandler(patterns, handler, options?)`: Create an event handler for simple or sequence-based hotkeys.
 - `formatPattern(pattern, options?)`: Format a pattern for display:
   ```tsx
-  formatPattern("Control+k"); // => "Ctrl + K"
-  formatPattern("g g"); // => "G then G"
+  formatPattern("Control+k"); // => "`Ctrl` + `k`"
+  formatPattern("g g"); // => "`g` then `g`"
   ```
 
 ## Advanced Usage
@@ -131,7 +137,7 @@ export const Component = () => {
     const handler = createHotkeyHandler(
       { patterns: "g g", sequenceTimeoutMs: 600 },
       () => {
-        console.log("Sequence G then G matched");
+        console.log("Sequence g then g matched");
       }
     );
 
@@ -140,7 +146,11 @@ export const Component = () => {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  return <p>Press "g g"</p>;
+  return (
+    <p>
+      Press <kbd>g</kbd> then <kbd>g</kbd> again.
+    </p>
+  );
 };
 ```
 
@@ -149,8 +159,8 @@ export const Component = () => {
 ```tsx
 import { formatPattern } from "@luxonauta/use-hotkeys";
 
-console.log(formatPattern("Control+k")); // Ctrl + K
-console.log(formatPattern("Meta+Shift+p")); // ⌘⇧P (on macOS)
+console.log(formatPattern("Control+k")); // `Ctrl` + `k`
+console.log(formatPattern("Meta+Shift+p")); // `⌘` `⇧` `p` (on macOS)
 ```
 
 ---
